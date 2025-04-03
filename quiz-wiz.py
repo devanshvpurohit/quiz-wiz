@@ -1,19 +1,53 @@
 import streamlit as st
 import pandas as pd
 import random
+import gspread
+from google.oauth2.service_account import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
-# 🔹 Google Sheets Public CSV URL (Change "edit" to "export?format=csv")
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/export?format=csv"
+# 🔹 OAuth Credentials (Directly Hardcoded - NOT SECURE)
+CLIENT_ID = "269670970067-4vf0m1aal2eav4po7bs7sflmp2uqgbg5.apps.googleusercontent.com"
+CLIENT_SECRET = "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"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
+
+# 🔹 OAuth 2.0 Authentication
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+flow = InstalledAppFlow.from_client_config(
+    {
+        "installed": {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "redirect_uris": ["http://localhost"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+    },
+    SCOPES,
+)
+creds = flow.run_local_server(port=0)
+service = build("sheets", "v4", credentials=creds)
+
+def connect_gsheet():
+    """ Connects to Google Sheets API """
+    gc = gspread.authorize(creds)
+    sheet = gc.open_by_url(SHEET_URL).sheet1
+    return sheet
+
+def save_score(name, score):
+    """ Saves user score to Google Sheets """
+    sheet = connect_gsheet()
+    sheet.append_row([name, score])
 
 def get_leaderboard():
-    """Fetch leaderboard from Google Sheets (Read-Only)."""
-    try:
-        df = pd.read_csv(SHEET_CSV_URL)
-        df = df.sort_values(by="Score", ascending=False)  # Sort by highest score
-        return df
-    except Exception as e:
-        st.error(f"⚠️ Could not fetch leaderboard: {e}")
+    """ Fetches leaderboard data from Google Sheets """
+    sheet = connect_gsheet()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    if df.empty:
         return pd.DataFrame(columns=["Name", "Score"])
+    df = df.sort_values(by="Score", ascending=False)  # Sort by highest score
+    return df
 
 # 🔹 IPL Quiz Questions
 def get_ipl_questions():
@@ -44,7 +78,14 @@ if st.button("Submit Answers"):
     correct_answers = sum(1 for q in questions if user_answers[q['question']] == q['answer'])
     st.success(f"🎉 You scored {correct_answers} out of 5!")
 
-# 🔹 Leaderboard Section (Read-Only)
+    # Get user name
+    name = st.text_input("Enter your name to save your score:")
+
+    if st.button("Save Score"):
+        save_score(name, correct_answers)
+        st.success("✅ Your score has been saved to Google Sheets!")
+
+# 🔹 Leaderboard Section
 st.header("🏆 Leaderboard")
 leaderboard = get_leaderboard()
 st.dataframe(leaderboard)
