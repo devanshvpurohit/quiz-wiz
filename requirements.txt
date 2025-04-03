@@ -11,4 +11,4 @@ pdf2image
 pdfminer-six
 google.generativeai
 gspread
-oauth2client.
+oauth2client
