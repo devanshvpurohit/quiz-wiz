@@ -1,51 +1,69 @@
 import streamlit as st
-import gspread
 import pandas as pd
-from oauth2client.service_account import ServiceAccountCredentials
+import random
+import gspread
 
-# Google Sheets Configuration
-SPREADSHEET_KEY = "1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU"
+# 🔹 Google Sheets Setup (Public Sheet Required)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
 
-# Connect to Google Sheets
-def get_gsheet():
-    gc = gspread.service_account()  # Ensure correct auth method
-    return gc.open_by_key(SPREADSHEET_KEY).sheet1
+def connect_gsheet():
+    """ Connects to a public Google Sheet (no authentication required). """
+    gc = gspread.Client()  # No authentication, public sheets only
+    sheet = gc.open_by_url(SHEET_URL).sheet1
+    return sheet
 
-def get_leaderboard():
-    sheet = get_gsheet()
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
-
-def update_leaderboard(name, score):
-    sheet = get_gsheet()
+def save_score(name, score):
+    """ Saves user score to Google Sheets. """
+    sheet = connect_gsheet()
     sheet.append_row([name, score])
 
-# Quiz Questions
-QUESTIONS = [
-    {"question": "What is 2+2?", "options": ["1", "3", "4", "5"], "answer": "4"},
-    {"question": "What is the capital of France?", "options": ["Berlin", "Madrid", "Paris", "Rome"], "answer": "Paris"},
-    {"question": "Which planet is known as the Red Planet?", "options": ["Earth", "Mars", "Jupiter", "Venus"], "answer": "Mars"}
-]
+def get_leaderboard():
+    """ Fetches the leaderboard from Google Sheets. """
+    sheet = connect_gsheet()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    if df.empty:
+        return pd.DataFrame(columns=["Name", "Score"])
+    df = df.sort_values(by="Score", ascending=False)  # Sort by highest score
+    return df
 
-def quiz_app():
-    st.title("Quiz App with Leaderboard")
-    name = st.text_input("Enter your name:")
+# 🔹 IPL Quiz Questions
+def get_ipl_questions():
+    questions = [
+        {"question": "Who won the first IPL title?", "options": ["CSK", "RR", "MI", "RCB"], "answer": "RR"},
+        {"question": "Which team has won the most IPL trophies?", "options": ["MI", "CSK", "KKR", "SRH"], "answer": "MI"},
+        {"question": "Who is the highest run-scorer in IPL history?", "options": ["Virat Kohli", "Rohit Sharma", "David Warner", "AB de Villiers"], "answer": "Virat Kohli"},
+        {"question": "Who won the IPL 2023 title?", "options": ["CSK", "GT", "RR", "MI"], "answer": "CSK"},
+        {"question": "Which IPL team has never won a trophy?", "options": ["RCB", "KKR", "SRH", "DC"], "answer": "RCB"},
+    ]
+    random.shuffle(questions)
+    return questions[:5]  # Select 5 random questions
+
+# 🔹 Streamlit UI
+st.title("🏏 IPL Quiz Challenge")
+st.write("Test your IPL knowledge with 5 random questions!")
+
+# Fetch questions
+questions = get_ipl_questions()
+user_answers = {}
+
+for idx, q in enumerate(questions):
+    st.subheader(f"Q{idx+1}: {q['question']}")
+    user_answers[q['question']] = st.radio("Select your answer:", q['options'], key=q['question'])
+
+# 🔹 Submit Button
+if st.button("Submit Answers"):
+    correct_answers = sum(1 for q in questions if user_answers[q['question']] == q['answer'])
+    st.success(f"🎉 You scored {correct_answers} out of 5!")
+
+    # Get user name
+    name = st.text_input("Enter your name to save your score:")
     
-    if name:
-        score = 0
-        for q in QUESTIONS:
-            answer = st.radio(q["question"], q["options"], key=q["question"])
-            if answer == q["answer"]:
-                score += 1
-        
-        if st.button("Submit Quiz"):
-            update_leaderboard(name, score)
-            st.success(f"{name}, your score is {score}/3")
+    if st.button("Save Score"):
+        save_score(name, correct_answers)
+        st.success("✅ Your score has been saved to Google Sheets!")
 
-    # Display Leaderboard
-    st.subheader("Leaderboard")
-    leaderboard = get_leaderboard()
-    st.dataframe(leaderboard)
-
-if __name__ == "__main__":
-    quiz_app()
+# 🔹 Leaderboard Section
+st.header("🏆 Leaderboard")
+leaderboard = get_leaderboard()
+st.dataframe(leaderboard)
