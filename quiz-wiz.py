@@ -1,31 +1,19 @@
 import streamlit as st
 import pandas as pd
 import random
-import gspread
 
-# 🔹 Google Sheets Setup (Public Sheet Required)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
-
-def connect_gsheet():
-    """ Connects to a public Google Sheet without authentication. """
-    gc = gspread.open_by_url(SHEET_URL)  # No authentication needed
-    sheet = gc.sheet1
-    return sheet
-
-def save_score(name, score):
-    """ Saves user score to Google Sheets. """
-    sheet = connect_gsheet()
-    sheet.append_row([name, score])
+# 🔹 Google Sheets Public CSV URL (Change "edit" to "export?format=csv")
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/export?format=csv"
 
 def get_leaderboard():
-    """ Fetches the leaderboard from Google Sheets. """
-    sheet = connect_gsheet()
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    if df.empty:
+    """Fetch leaderboard from Google Sheets (Read-Only)."""
+    try:
+        df = pd.read_csv(SHEET_CSV_URL)
+        df = df.sort_values(by="Score", ascending=False)  # Sort by highest score
+        return df
+    except Exception as e:
+        st.error(f"⚠️ Could not fetch leaderboard: {e}")
         return pd.DataFrame(columns=["Name", "Score"])
-    df = df.sort_values(by="Score", ascending=False)  # Sort by highest score
-    return df
 
 # 🔹 IPL Quiz Questions
 def get_ipl_questions():
@@ -56,14 +44,7 @@ if st.button("Submit Answers"):
     correct_answers = sum(1 for q in questions if user_answers[q['question']] == q['answer'])
     st.success(f"🎉 You scored {correct_answers} out of 5!")
 
-    # Get user name
-    name = st.text_input("Enter your name to save your score:")
-    
-    if st.button("Save Score"):
-        save_score(name, correct_answers)
-        st.success("✅ Your score has been saved to Google Sheets!")
-
-# 🔹 Leaderboard Section
+# 🔹 Leaderboard Section (Read-Only)
 st.header("🏆 Leaderboard")
 leaderboard = get_leaderboard()
 st.dataframe(leaderboard)
