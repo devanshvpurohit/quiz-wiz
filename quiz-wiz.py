@@ -1,75 +1,66 @@
 import streamlit as st
 import gspread
-import random
-import requests
 from google.oauth2.credentials import Credentials
+import random
 
-# Google Sheets & OAuth Setup
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing"
-CLIENT_ID = "269670970067-4vf0m1aal2eav4po7bs7sflmp2uqgbg5.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
-REDIRECT_URI = "https://quiz321.streamlit.app"
-
-# Fetch Access Token
-def get_google_creds():
-    payload = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "client_credentials"
+def authenticate_google_sheets():
+    creds_info = {
+        "web": {
+            "client_id": "269670970067-4vf0m1aal2eav4po7bs7sflmp2uqgbg5.apps.googleusercontent.com",
+            "project_id": "secret-willow-453305-m7",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": "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",
+            "redirect_uris": ["https://quiz321.streamlit.app"],
+            "javascript_origins": ["https://quiz321.streamlit.app"]
+        }
     }
-    response = requests.post(TOKEN_URL, data=payload)
-    response_json = response.json()
-    return Credentials(token=response_json["access_token"])
+    creds = Credentials.from_authorized_user_info(creds_info["web"])
+    client = gspread.authorize(creds)
+    return client
 
-# Connect to Google Sheets
-def connect_gsheet():
-    creds = get_google_creds()
-    gc = gspread.authorize(creds)
-    sheet = gc.open_by_url(SHEET_URL).sheet1
-    return sheet
+def update_username(username, sheet_name="Untitled"):
+    client = authenticate_google_sheets()
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing").worksheet(sheet_name)
+    sheet.append_row([username])
 
-# Fetch IPL Questions
-def get_ipl_questions():
-    questions = [
-        {"question": "Who won the first IPL season?", "options": ["CSK", "RR", "MI", "RCB"], "answer": "RR"},
-        {"question": "Who has the most IPL titles?", "options": ["MI", "CSK", "KKR", "SRH"], "answer": "MI"},
-        {"question": "Which player has the most IPL centuries?", "options": ["Kohli", "Warner", "Gayle", "Rohit"], "answer": "Gayle"}
-    ]
-    return random.sample(questions, 3)
+def get_quiz_questions(sheet_name="QuizQuestions"):
+    client = authenticate_google_sheets()
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing").worksheet(sheet_name)
+    data = sheet.get_all_records()
+    return data
 
-# Save Score to Google Sheet
-def save_score(username, ip, score):
-    sheet = connect_gsheet()
-    sheet.append_row([username, ip, score])
+def update_leaderboard(username, score, sheet_name="Leaderboard"):
+    client = authenticate_google_sheets()
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing").worksheet(sheet_name)
+    sheet.append_row([username, score])
 
-# Get Leaderboard
-def get_leaderboard():
-    sheet = connect_gsheet()
-    return sheet.get_all_values()[-5:]  # Last 5 entries
+def display_leaderboard(sheet_name="Leaderboard"):
+    client = authenticate_google_sheets()
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing").worksheet(sheet_name)
+    data = sheet.get_all_records()
+    sorted_data = sorted(data, key=lambda x: x["Score"], reverse=True)
+    return sorted_data
 
-# Streamlit App
-def quiz_app():
-    st.title("🏏 IPL Quiz Challenge")
-    username = st.text_input("Enter your name:")
-    ip_address = requests.get("https://api64.ipify.org?format=json").json()["ip"]
+st.title("🏏 IPL Quiz Challenge")
+
+username = st.text_input("Enter your name to start:")
+
+if username:
+    update_username(username)  # Store username in 'Untitled' sheet
+    questions = get_quiz_questions()
+    score = 0
+    for question in random.sample(questions, 5):
+        st.write(question["Question"])
+        answer = st.radio("Choose an answer:", question["Options"].split(","))
+        if answer == question["Answer"]:
+            score += 1
     
-    if st.button("Start Quiz"):
-        questions = get_ipl_questions()
-        score = 0
+    st.write(f"### 🎉 Your Score: {score}/5")
+    update_leaderboard(username, score)
 
-        for q in questions:
-            answer = st.radio(q["question"], q["options"])
-            if answer == q["answer"]:
-                score += 1
-        
-        save_score(username, ip_address, score)
-        st.success(f"🎉 You scored {score}/3!")
-    
-    st.subheader("🏆 Leaderboard")
-    leaderboard = get_leaderboard()
-    for row in leaderboard:
-        st.write(f"{row[0]} - {row[2]} points")
-
-if __name__ == "__main__":
-    quiz_app()
+    st.write("## 🏆 Leaderboard")
+    leaderboard = display_leaderboard()
+    for entry in leaderboard:
+        st.write(f"{entry['Username']} - {entry['Score']}")
