@@ -10,3 +10,4 @@ unstructured==0.10.15
 pdf2image
 pdfminer-six
 google.generativeai
+gspread
