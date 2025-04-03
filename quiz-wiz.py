@@ -3,27 +3,22 @@ import random
 import gspread
 from google.oauth2.service_account import Credentials
 
-# Google Sheets Authentication
+# Load credentials from Streamlit secrets
+creds_dict = st.secrets["google_service_account"]
+creds = Credentials.from_service_account_info(dict(creds_dict))
+
+# Authenticate with Google Sheets
+client = gspread.authorize(creds)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing"
-SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
-SERVICE_ACCOUNT_FILE = "secret-willow-453305-m7-20d3175ecad4.json"
-
-def authenticate_google_sheets():
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    client = gspread.authorize(creds)
-    return client
 
 def update_leaderboard(username, score):
-    client = authenticate_google_sheets()
     sheet = client.open_by_url(SHEET_URL).worksheet("Leaderboard")
     sheet.append_row([username, score])
 
 def display_leaderboard():
-    client = authenticate_google_sheets()
     sheet = client.open_by_url(SHEET_URL).worksheet("Leaderboard")
     data = sheet.get_all_records()
-    sorted_data = sorted(data, key=lambda x: x["Score"], reverse=True)
+    sorted_data = sorted(data, key=lambda x: x.get("Score", 0), reverse=True)
     return sorted_data
 
 # Predefined IPL Quiz Questions
@@ -45,17 +40,20 @@ username = st.text_input("Enter your name to start:")
 if username:
     score = 0
     selected_questions = random.sample(quiz_questions, 5)
-    for question in selected_questions:
-        st.write(question["question"])
-        answer = st.radio("Choose an answer:", question["options"], key=question["question"])
-        if st.button("Submit", key=question["question"] + "_btn"):
-            if answer == question["answer"]:
-                score += 1
+    for i, question in enumerate(selected_questions):
+        st.write(f"**{i+1}. {question['question']}**")
+        answer = st.radio("Choose an answer:", question["options"], key=f"q{i}")
     
-    st.write(f"### 🎉 Your Score: {score}/5")
-    update_leaderboard(username, score)
+    if st.button("Submit Quiz"):
+        for i, question in enumerate(selected_questions):
+            user_answer = st.session_state[f"q{i}"]
+            if user_answer == question["answer"]:
+                score += 1
 
-    st.write("## 🏆 Leaderboard")
-    leaderboard = display_leaderboard()
-    for entry in leaderboard:
-        st.write(f"{entry['Username']} - {entry['Score']}")
+        st.write(f"### 🎉 Your Score: {score}/5")
+        update_leaderboard(username, score)
+
+        st.write("## 🏆 Leaderboard")
+        leaderboard = display_leaderboard()
+        for entry in leaderboard:
+            st.write(f"{entry.get('Username', 'Unknown')} - {entry.get('Score', 0)}")
