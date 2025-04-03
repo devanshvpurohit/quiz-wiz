@@ -1,59 +1,61 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
+import pandas as pd
+import random
+import gspread
 
-# Configure Gemini API
-genai.configure(api_key="AIzaSyBmETEzYBcKH6hhBUrX2XwkNZLA9Js_YLA")
-model = genai.GenerativeModel("gemini-1.5-flash")
+# 🔥 Hardcoded API Key (Avoid using in production)
+API_KEY = "AIzaSyDQnu06TUPZGkXIoZKohK9T4ut5-3Kyv5o"
 
-def get_player_score(player_name):
-    """Fetch player historical performance using Gemini."""
-    prompt = f"Provide a summary performance score (out of 100) for the cricketer {player_name} based on historical IPL data."
-    try:
-        response = model.generate_content(prompt)
-        score = extract_score(response.text)
-        return score
-    except Exception as e:
-        st.error(f"Error fetching score for {player_name}: {e}")
-        return 50  # Default score
-
-# Mock function to extract score from Gemini's response
-def extract_score(response_text):
-    try:
-        return int(response_text.split()[0])  # Assuming response starts with score
-    except:
-        return 50  # Default score
-
-# Streamlit UI
-st.title("IPL 2025 Team Ranking Based on Player History")
-
-# Predefined IPL teams and players
-ipl_teams = {
-    "Mumbai Indians": ["Rohit Sharma", "Suryakumar Yadav", "Jasprit Bumrah", "Ishan Kishan", "Hardik Pandya"],
-    "Chennai Super Kings": ["MS Dhoni", "Ravindra Jadeja", "Ruturaj Gaikwad", "Deepak Chahar", "Devon Conway"],
-    "Royal Challengers Bangalore": ["Virat Kohli", "Faf du Plessis", "Glenn Maxwell", "Mohammed Siraj", "Dinesh Karthik"],
-    "Kolkata Knight Riders": ["Shreyas Iyer", "Andre Russell", "Sunil Narine", "Rinku Singh", "Mitchell Starc"],
-    "Delhi Capitals": ["Rishabh Pant", "David Warner", "Kuldeep Yadav", "Prithvi Shaw", "Axar Patel"],
-    "Rajasthan Royals": ["Sanju Samson", "Jos Buttler", "Yuzvendra Chahal", "Trent Boult", "Shimron Hetmyer"],
-    "Punjab Kings": ["Shikhar Dhawan", "Liam Livingstone", "Sam Curran", "Kagiso Rabada", "Arshdeep Singh"],
-    "Sunrisers Hyderabad": ["Aiden Markram", "Bhuvneshwar Kumar", "Heinrich Klaasen", "Umran Malik", "Washington Sundar"],
-    "Lucknow Super Giants": ["KL Rahul", "Quinton de Kock", "Marcus Stoinis", "Ravi Bishnoi", "Krunal Pandya"],
-    "Gujarat Titans": ["Shubman Gill", "Rashid Khan", "Mohammed Shami", "Rahul Tewatia", "David Miller"]
-}
-
-# Team selection
-top_teams = st.multiselect("Select 10 teams to rank", list(ipl_teams.keys()), default=list(ipl_teams.keys())[:10])
-
-if st.button("Rank Teams"):
-    team_scores = {}
-    for team in top_teams:
-        players = ipl_teams[team]
-        total_score = sum(get_player_score(player) for player in players)
-        team_scores[team] = total_score
+# 🔹 Fetch IPL Quiz Questions (Replace with a real API if available)
+def fetch_ipl_questions():
+    url = f"https://api.example.com/get-ipl-questions?key={API_KEY}"  # Replace with actual API
+    response = requests.get(url)
     
-    ranked_teams = sorted(team_scores.items(), key=lambda x: x[1], reverse=True)
+    if response.status_code == 200:
+        return response.json()["questions"]  # Assuming API returns {"questions": [...]} format
+    else:
+        st.warning("Failed to fetch IPL questions. Using sample data.")
+        return [
+            {"question": "Who won the first IPL title?", "options": ["CSK", "RR", "MI", "RCB"], "answer": "RR"},
+            {"question": "Which team has won the most IPL trophies?", "options": ["MI", "CSK", "KKR", "SRH"], "answer": "MI"},
+            {"question": "Who is the highest run-scorer in IPL history?", "options": ["Virat Kohli", "Rohit Sharma", "David Warner", "AB de Villiers"], "answer": "Virat Kohli"},
+        ]
+
+# 🔹 Connect to Public Google Sheet (Without Authentication)
+def connect_gsheet():
+    SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
+    gc = gspread.service_account(filename=None)  # No credentials required for public sheets
+    sheet = gc.open_by_url(SHEET_URL).sheet1
+    return sheet
+
+# 🔹 Save Quiz Results to Google Sheets
+def save_results(name, score):
+    sheet = connect_gsheet()
+    sheet.append_row([name, score])
+
+# 🔹 Streamlit App UI
+st.title("🏏 IPL Quiz Challenge")
+st.write("Test your IPL knowledge with 20 random questions!")
+
+# Fetch and shuffle questions
+questions = fetch_ipl_questions()
+random.shuffle(questions)
+questions = questions[:20]  # Get 20 random questions
+
+user_answers = {}
+for idx, q in enumerate(questions):
+    st.subheader(f"Q{idx+1}: {q['question']}")
+    user_answers[q['question']] = st.radio("Select your answer:", q['options'], key=q['question'])
+
+# Submit Button
+if st.button("Submit Answers"):
+    correct_answers = sum(1 for q in questions if user_answers[q['question']] == q['answer'])
+    st.success(f"🎉 You scored {correct_answers} out of 20!")
+
+    # Get user name
+    name = st.text_input("Enter your name to save your score:")
     
-    st.write("### Ranked Teams")
-    for rank, (team, score) in enumerate(ranked_teams, 1):
-        st.write(f"{rank}. {team}: {score} points")
-else:
-    st.write("Select 10 teams and click Rank Teams.")
+    if st.button("Save Score"):
+        save_results(name, correct_answers)
+        st.success("✅ Your score has been saved!")
