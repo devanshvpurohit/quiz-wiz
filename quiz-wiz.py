@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 
 # Configure Gemini API
-genai.configure(api_key="AIzaSyAW_b4mee9l8eP931cqd9xqErHV34f7OEw")
+genai.configure(api_key="AIzaSyBmETEzYBcKH6hhBUrX2XwkNZLA9Js_YLA)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 def get_player_score(player_name):
