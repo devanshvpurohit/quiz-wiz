@@ -7,9 +7,9 @@ import gspread
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
 
 def connect_gsheet():
-    """ Connects to a public Google Sheet (no authentication required). """
-    gc = gspread.Client()  # No authentication, public sheets only
-    sheet = gc.open_by_url(SHEET_URL).sheet1
+    """ Connects to a public Google Sheet without authentication. """
+    gc = gspread.open_by_url(SHEET_URL)  # No authentication needed
+    sheet = gc.sheet1
     return sheet
 
 def save_score(name, score):
