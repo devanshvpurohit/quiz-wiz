@@ -1,27 +1,17 @@
 import streamlit as st
 import random
 import gspread
-from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials
 
 # Google Sheets Authentication
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit?usp=sharing"
 SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-auth_info = {
-    "web": {
-        "client_id": "269670970067-4vf0m1aal2eav4po7bs7sflmp2uqgbg5.apps.googleusercontent.com",
-        "project_id": "secret-willow-453305-m7",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_secret": "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",
-        "redirect_uris": ["https://quiz321.streamlit.app"],
-        "javascript_origins": ["https://quiz321.streamlit.app"]
-    }
-}
+# Path to your service account key JSON file
+SERVICE_ACCOUNT_FILE = "service_account.json"
 
 def authenticate_google_sheets():
-    creds = Credentials.from_authorized_user_info(auth_info["web"], scopes=SCOPES)
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
     return client
 
