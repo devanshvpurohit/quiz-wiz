@@ -1,61 +1,51 @@
 import streamlit as st
-import requests
-import pandas as pd
-import random
 import gspread
+import pandas as pd
+from oauth2client.service_account import ServiceAccountCredentials
 
-# 🔥 Hardcoded API Key (Avoid using in production)
-API_KEY = "AIzaSyDQnu06TUPZGkXIoZKohK9T4ut5-3Kyv5o"
+# Google Sheets Configuration
+SPREADSHEET_KEY = "1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU"
 
-# 🔹 Fetch IPL Quiz Questions (Replace with a real API if available)
-def fetch_ipl_questions():
-    url = f"https://api.example.com/get-ipl-questions?key={API_KEY}"  # Replace with actual API
-    response = requests.get(url)
-    
-    if response.status_code == 200:
-        return response.json()["questions"]  # Assuming API returns {"questions": [...]} format
-    else:
-        st.warning("Failed to fetch IPL questions. Using sample data.")
-        return [
-            {"question": "Who won the first IPL title?", "options": ["CSK", "RR", "MI", "RCB"], "answer": "RR"},
-            {"question": "Which team has won the most IPL trophies?", "options": ["MI", "CSK", "KKR", "SRH"], "answer": "MI"},
-            {"question": "Who is the highest run-scorer in IPL history?", "options": ["Virat Kohli", "Rohit Sharma", "David Warner", "AB de Villiers"], "answer": "Virat Kohli"},
-        ]
+# Connect to Google Sheets
+def get_gsheet():
+    gc = gspread.service_account()  # Ensure correct auth method
+    return gc.open_by_key(SPREADSHEET_KEY).sheet1
 
-# 🔹 Connect to Public Google Sheet (Without Authentication)
-def connect_gsheet():
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/1csaETbJIYJPW9amvGB9rq0uYEK7sH83Ueq8UUjpp0GU/edit#gid=0"
-    gc = gspread.service_account(filename=None)  # No credentials required for public sheets
-    sheet = gc.open_by_url(SHEET_URL).sheet1
-    return sheet
+def get_leaderboard():
+    sheet = get_gsheet()
+    data = sheet.get_all_records()
+    return pd.DataFrame(data)
 
-# 🔹 Save Quiz Results to Google Sheets
-def save_results(name, score):
-    sheet = connect_gsheet()
+def update_leaderboard(name, score):
+    sheet = get_gsheet()
     sheet.append_row([name, score])
 
-# 🔹 Streamlit App UI
-st.title("🏏 IPL Quiz Challenge")
-st.write("Test your IPL knowledge with 20 random questions!")
+# Quiz Questions
+QUESTIONS = [
+    {"question": "What is 2+2?", "options": ["1", "3", "4", "5"], "answer": "4"},
+    {"question": "What is the capital of France?", "options": ["Berlin", "Madrid", "Paris", "Rome"], "answer": "Paris"},
+    {"question": "Which planet is known as the Red Planet?", "options": ["Earth", "Mars", "Jupiter", "Venus"], "answer": "Mars"}
+]
 
-# Fetch and shuffle questions
-questions = fetch_ipl_questions()
-random.shuffle(questions)
-questions = questions[:20]  # Get 20 random questions
-
-user_answers = {}
-for idx, q in enumerate(questions):
-    st.subheader(f"Q{idx+1}: {q['question']}")
-    user_answers[q['question']] = st.radio("Select your answer:", q['options'], key=q['question'])
-
-# Submit Button
-if st.button("Submit Answers"):
-    correct_answers = sum(1 for q in questions if user_answers[q['question']] == q['answer'])
-    st.success(f"🎉 You scored {correct_answers} out of 20!")
-
-    # Get user name
-    name = st.text_input("Enter your name to save your score:")
+def quiz_app():
+    st.title("Quiz App with Leaderboard")
+    name = st.text_input("Enter your name:")
     
-    if st.button("Save Score"):
-        save_results(name, correct_answers)
-        st.success("✅ Your score has been saved!")
+    if name:
+        score = 0
+        for q in QUESTIONS:
+            answer = st.radio(q["question"], q["options"], key=q["question"])
+            if answer == q["answer"]:
+                score += 1
+        
+        if st.button("Submit Quiz"):
+            update_leaderboard(name, score)
+            st.success(f"{name}, your score is {score}/3")
+
+    # Display Leaderboard
+    st.subheader("Leaderboard")
+    leaderboard = get_leaderboard()
+    st.dataframe(leaderboard)
+
+if __name__ == "__main__":
+    quiz_app()
